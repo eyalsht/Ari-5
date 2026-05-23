@@ -69,13 +69,29 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
 .tab.active-purchased{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 4px 12px #6BCB7755}
 
 #grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(158px,1fr));
-  gap:14px;padding:14px 16px 100px;
+  display:block;padding:14px 16px 100px;
   max-width:920px;margin:0 auto
 }
+.cat-section{margin-bottom:26px;animation:fadeIn .3s ease both}
+.cat-header{
+  display:flex;align-items:center;gap:10px;
+  margin:0 4px 12px;padding:8px 4px;
+  border-bottom:2px dashed #e5e7eb
+}
+.cat-chip{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:38px;height:38px;border-radius:12px;font-size:22px;
+  box-shadow:0 3px 10px rgba(0,0,0,.08)
+}
+.cat-title{font-size:17px;font-weight:900;color:#1f2937;letter-spacing:-.3px}
+.cat-count{font-size:13px;font-weight:700;color:#9ca3af;margin-right:auto}
+.cat-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(158px,1fr));
+  gap:14px
+}
 .card{
-  background:#fff;border-radius:18px;padding:18px 14px 14px;
+  background:#fff;border-radius:18px;padding:14px 14px 14px;
   box-shadow:0 4px 18px rgba(0,0,0,.08);
   transition:transform .2s,box-shadow .2s;
   position:relative;overflow:hidden;
@@ -83,7 +99,13 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
 }
 .card:hover{transform:translateY(-5px);box-shadow:0 12px 32px rgba(0,0,0,.13)}
 .card.purchased{background:#f0fdf4}
-.card .emoji{text-align:center;font-size:38px;line-height:1;margin-bottom:10px}
+.card .media{
+  width:100%;height:104px;border-radius:12px;
+  background:#f9fafb;display:flex;align-items:center;justify-content:center;
+  margin-bottom:10px;overflow:hidden
+}
+.card .media img{max-width:100%;max-height:100%;object-fit:contain}
+.card .media.emoji-only{font-size:54px;background:transparent;line-height:1}
 .card .name{font-size:13.5px;font-weight:700;color:#1f2937;text-align:center;line-height:1.4;min-height:38px;display:flex;align-items:center;justify-content:center}
 .card.purchased .name{text-decoration:line-through;color:#9ca3af}
 .check-badge{
@@ -126,7 +148,14 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
 }
 .mark-btn:hover{border-color:#6BCB77;color:#6BCB77;background:#f0fdf4}
 .mark-btn.is-marked{border-color:#6BCB77;color:#16a34a;background:#dcfce7}
-#empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:#9ca3af;display:none}
+.img-btn{
+  display:block;width:100%;margin-top:6px;padding:6px 8px;
+  border-radius:8px;border:1px dashed #d1d5db;background:transparent;
+  font-family:'Heebo',sans-serif;font-size:11px;font-weight:700;
+  color:#9ca3af;cursor:pointer;transition:all .2s
+}
+.img-btn:hover{border-color:#4D96FF;color:#4D96FF;background:#eff6ff}
+#empty{text-align:center;padding:60px 20px;color:#9ca3af;display:none}
 #empty .empty-icon{font-size:52px;margin-bottom:12px}
 #empty p{font-size:16px;font-weight:700}
 
@@ -163,9 +192,19 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
 .btn-add:not(:disabled):hover{filter:brightness(1.08)}
 .btn-close2{flex:1;padding:13px;border-radius:12px;border:2px solid #e5e7eb;background:#fff;color:#6b7280;font-family:'Heebo',sans-serif;font-weight:700;font-size:16px;cursor:pointer}
 .cpiece{position:fixed;border-radius:2px;pointer-events:none;z-index:9999;animation:confettiDrop linear forwards}
+#cat-select{
+  width:100%;padding:12px 14px;border:2px solid #e5e7eb;border-radius:12px;
+  font-family:'Heebo',sans-serif;font-size:15px;outline:none;direction:rtl;
+  margin-bottom:12px;background:#fff;color:#111;cursor:pointer
+}
+#cat-select:focus{border-color:#FF6B6B}
 
 @media(max-width:400px){
-  #grid{grid-template-columns:repeat(2,1fr);gap:10px;padding:10px 10px 90px}
+  .cat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  #grid{padding:10px 10px 90px}
+  .cat-header{margin:0 0 10px}
+  .cat-title{font-size:15px}
+  .card .media{height:90px}
 }
 </style>
 </head>
@@ -214,13 +253,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
 
 <div id="modal-overlay" onclick="overlayClick(event)">
   <div id="modal">
-    <h2>🎁 הוסף מתנה</h2>
-    <p class="sub">הוסיפו מתנה שהילד ביקש</p>
+    <h2 id="modal-title">🎁 הוסף מתנה</h2>
+    <p class="sub" id="modal-sub">הוסיפו מתנה שהילד ביקש</p>
     <label class="mlabel">שם המתנה *</label>
     <input id="inp-name" class="minput" placeholder="למשל: טרמפולינה" oninput="updateAddBtn()" onkeydown="if(event.key==='Enter')doAdd()"/>
+    <label class="mlabel">קטגוריה</label>
+    <select id="cat-select"></select>
     <label class="mlabel">קישור לאתר (לא חובה)</label>
     <input id="inp-url" class="minput minput-ltr" placeholder="https://..." dir="ltr"/>
-    <label class="mlabel" style="margin-bottom:8px">אמוג׳י</label>
+    <label class="mlabel">קישור לתמונה (לא חובה)</label>
+    <input id="inp-img" class="minput minput-ltr" placeholder="https://...jpg" dir="ltr"/>
+    <label class="mlabel" style="margin-bottom:8px">אמוג׳י (גיבוי אם אין תמונה)</label>
     <div id="emoji-grid"></div>
     <div class="modal-actions">
       <button class="btn-add" id="btn-add" disabled onclick="doAdd()">הוסף 🎉</button>
@@ -252,49 +295,76 @@ const firebaseConfig = {
 const EMOJIS = ["🎁","🎮","🎨","⚽","🚀","🌊","🎲","🧩","🎤","🏖️","✨","🌸","🐠","🔭","🏰","🧱","🪁","💧","🍓","❄️","🃏","🧭","🕵️","🎯","🎪","🏁","⛺","🍝","🍣","🪃","🥏","🏄","🛣️","🐵","🔍","🍦","🎉","🎊","🌟","🦋"];
 const COLORS = ["#FF6B6B","#FF8E53","#FFB347","#FFD93D","#6BCB77","#4D96FF","#C77DFF","#FF6B9D","#00C9FF","#2EC4B6","#FF9F1C","#A8DADC","#F4A261","#E76F51","#457B9D"];
 
+const CATEGORIES = [
+  { id:'water',    name:'משחקי מים',           emoji:'💧', color:'#4D96FF' },
+  { id:'beach',    name:'חוף, חול וים',        emoji:'🏖️', color:'#FF9F1C' },
+  { id:'kitchen',  name:'מטבח ובישול',         emoji:'🍳', color:'#FF8E53' },
+  { id:'games',    name:'משחקי קופסה וקלפים',  emoji:'🎲', color:'#C77DFF' },
+  { id:'creative', name:'יצירה ואומנות',       emoji:'🎨', color:'#FF6B9D' },
+  { id:'marble',   name:'מסלולי כדורים',       emoji:'⚽', color:'#FFD93D' },
+  { id:'outdoor',  name:'חוץ ותנועה',          emoji:'🪁', color:'#6BCB77' },
+  { id:'explore',  name:'חקירה וגילוי',        emoji:'🔭', color:'#2EC4B6' },
+  { id:'misc',     name:'שונות',              emoji:'🎁', color:'#A8DADC' },
+];
+const CAT_MAP = Object.fromEntries(CATEGORIES.map(c=>[c.id,c]));
+
+function autoCategory(g){
+  if(g.category && CAT_MAP[g.category]) return g.category;
+  const n = (g.name||'').toLowerCase();
+  if(/מים|water wonder|תעלת מים|שולחן מים|מטבח לבחוץ/.test(n)) return 'water';
+  if(/חול|quut|חוף|sandpal|castle builders|צלילה|כביש m|קופי לגונה|antal/.test(n)) return 'beach';
+  if(/פסטה|סושי|ברבקיו|מטבח ילדים|בישול/.test(n)) return 'kitchen';
+  if(/קופסא|קופסה|קלפים|londji|djeco|מיסטריקס|tiny game|מרוץ בשלג|היכון הכן צא|סולוגיק|תאפלה/.test(n)) return 'games';
+  if(/יצירה|נייר כסף|מובייל|מייבש פרחים|הפתעות.*חלל/.test(n)) return 'creative';
+  if(/marble|cuboro|מסלול/.test(n)) return 'marble';
+  if(/עפיפון|מחבטים|אוהל|טיפי|סקוטש/.test(n)) return 'outdoor';
+  if(/מצפן|משקפת|גששי|בלש|גלאי|hape/.test(n)) return 'explore';
+  return 'misc';
+}
+
 const DEFAULT_GIFTS = [
-  {id:1,  name:"סט להכנת פסטה — מליסה ודאג",           emoji:"🍝", url:"https://dafram-online.co.il/%D7%9E%D7%9C%D7%99%D7%A1%D7%94-%D7%95%D7%93%D7%90%D7%92-%D7%A1%D7%98-%D7%9C%D7%94%D7%9B%D7%A0%D7%AA-%D7%A4%D7%A1%D7%98%D7%94/"},
-  {id:2,  name:"דוכן סושי מעץ — Melissa & Doug",        emoji:"🍣", url:"https://www.pluslaganenet.co.il/items/5039543-%D7%93%D7%95%D7%9B%D7%9F-%D7%A1%D7%95%D7%A9%D7%99-%D7%9E%D7%A2%D7%A5-Melissa-Doug"},
-  {id:3,  name:"סושי מליסה ודאג (גרסה נוספת)",          emoji:"🍱", url:"https://www.google.com/search?q=%D7%A1%D7%95%D7%A9%D7%99+%D7%9E%D7%9C%D7%99%D7%A1%D7%94+%D7%95%D7%93%D7%90%D7%92"},
-  {id:4,  name:"אוהל אינדיאני טיפי",                    emoji:"⛺", url:"https://www.idanelgani.co.il/html5/prolookup.taf?&_id=41375&did=9832"},
-  {id:5,  name:"ערכת ברבקיו Smoby",                     emoji:"🍖", url:"https://ti-m.co.il/product/%d7%a2%d7%a8%d7%9b%d7%aa-%d7%91%d7%a8%d7%91%d7%a7%d7%99%d7%95-%d7%9b%d7%95%d7%9c%d7%9c-%d7%90%d7%91%d7%99%d7%96%d7%a8%d7%99%d7%9d-%d7%a9%d7%9c-%d7%97%d7%91%d7%a8%d7%aa-smoby-%d7%9e%d7%a6%d7%a8%d7%a4/"},
-  {id:6,  name:"מטבח לבחוץ עם מים",                     emoji:"🚿", url:null},
-  {id:7,  name:"דברים לחול של Quut",                    emoji:"🏖️", url:null},
-  {id:8,  name:"עפיפון",                                 emoji:"🪁", url:null},
-  {id:9,  name:"תעלת מים / שולחן מים",                  emoji:"💧", url:null},
-  {id:10, name:"משחק קופסא / קלפים — רונציק",           emoji:"🎲", url:null},
-  {id:11, name:"מטבח ילדים ושולחן עבודה — Yashas Wood", emoji:"🪵", url:"https://yashas-wood.co.il/product/%d7%9e%d7%98%d7%91%d7%97-%d7%99%d7%9c%d7%93%d7%99%d7%9d-%d7%95%d7%a9%d7%95%d7%9c%d7%97%d7%9f-%d7%a2%d7%91%d7%95%d7%93%d7%94"},
-  {id:12, name:"הרפתקאות סראוקה",                        emoji:"🎤", url:null},
-  {id:13, name:"מייבש פרחים",                            emoji:"🌸", url:null},
-  {id:14, name:"זוג מחבטים עגולים — סקוטש",             emoji:"🏓", url:"https://www.mekupelet.co.il/product/%D7%96%D7%95%D7%92-%D7%9E%D7%97%D7%91%D7%98%D7%99%D7%9D-%D7%A2%D7%92%D7%95%D7%9C%D7%99%D7%9D-%D7%A1%D7%A7%D7%95%D7%98%D7%A9-%D7%95%D7%9B%D7%93%D7%95%D7%A8%D7%99%D7%9D/"},
-  {id:15, name:"זוג מחבטים ידיות עץ וכדור גומי",        emoji:"🪃", url:"https://www.mekupelet.co.il/product/%D7%96%D7%95%D7%92-%D7%9E%D7%97%D7%91%D7%98%D7%99%D7%9D-%D7%99%D7%93%D7%99%D7%95%D7%AA-%D7%A2%D7%A5-%D7%95%D7%9B%D7%93%D7%95%D7%A8-%D7%92%D7%95%D7%9E%D7%99/"},
-  {id:16, name:"תאפלה — פריט מיוחד",                    emoji:"🎯", url:"https://www.taflaya.co.il/items/8077487"},
-  {id:17, name:"Castle Builders Kit — Sandpal",          emoji:"🏰", url:"https://sandpal.co.il/products/castle-builders-kit"},
-  {id:18, name:"ערכת הפתעות על חלל",                    emoji:"🚀", url:"https://www.galsoaps.co.il/product/%d7%a2%d7%a8%d7%9b%d7%aa-%d7%94%d7%a4%d7%aa%d7%a2%d7%95%d7%aa-%d7%a2%d7%9c-%d7%97%d7%9c%d7%9c"},
-  {id:19, name:"משפך קנה גדול — ורוד ואדום",             emoji:"🎪", url:"https://www.antal.co.il/product/10105/%D7%9E%D7%A9%D7%A4%D7%9A%20%D7%A7%D7%A0%D7%94%20%D7%92%D7%93%D7%95%D7%9C%20-%20%D7%95%D7%A8%D7%95%D7%93%20%D7%95%D7%90%D7%93%D7%95%D7%9D"},
-  {id:20, name:"סט Quut לחוף — טריפלט, רינגו ושמש",     emoji:"☀️", url:"https://www.antal.co.il/product/10106/%D7%A1%D7%98%20Quut%20%D7%9C%D7%97%D7%95%D7%A3%20%D7%94%D7%99%D7%9D%20-%20%D7%98%D7%A8%D7%99%D7%A4%D7%9C%D7%98,%20%D7%A8%D7%99%D7%A0%D7%92%D7%95,%20%D7%95%D7%A9%D7%9E%D7%A9%20%D7%9C%D7%97%D7%95%D7%9C"},
-  {id:21, name:"פריסבי מסננת Quut",                      emoji:"🥏", url:"https://www.antal.co.il/product/10108/%D7%A4%D7%A8%D7%99%D7%A1%D7%91%D7%99%20%D7%9E%D7%A1%D7%A0%D7%A0%D7%AA%20Quut"},
-  {id:22, name:"סט Quut לחוף — אלטו וראקי לחול",        emoji:"🏄", url:"https://www.antal.co.il/product/10576/%D7%A1%D7%98%20Quut%20%D7%9C%D7%97%D7%95%D7%A3%20%D7%94%D7%99%D7%9D%20-%20%D7%90%D7%9C%D7%98%D7%95%20%D7%95%D7%A8%D7%90%D7%A7%D7%99%20%D7%9C%D7%97%D7%95%D7%9C"},
-  {id:23, name:"צעצועי צלילה — חיות ים",                emoji:"🐠", url:"https://www.antal.co.il/product/11593/%D7%A6%D7%A2%D7%A6%D7%95%D7%A2%D7%99%20%D7%A6%D7%9C%D7%99%D7%9C%D7%94%20-%20%D7%97%D7%99%D7%95%D7%AA%20%D7%99%D7%9D"},
-  {id:24, name:"מגבת משחק — כביש M",                    emoji:"🛣️", url:"https://www.antal.co.il/product/11596/%D7%9E%D7%92%D7%91%D7%AA%20%D7%9E%D7%A9%D7%97%D7%A7%20-%20%D7%9B%D7%91%D7%99%D7%A9%20M"},
-  {id:25, name:"קופי לגונה",                             emoji:"🐵", url:"https://www.antal.co.il/product/11833/%D7%A7%D7%95%D7%A4%D7%99-%20%D7%9C%D7%92%D7%95%D7%A0%D7%94"},
-  {id:26, name:"Antal — מוצר מיוחד",                    emoji:"🎁", url:"https://www.antal.co.il/product/10107"},
-  {id:27, name:"יצירה עם נייר כסף — Floss Rock",        emoji:"✨", url:"https://ronchik.co.il/product/%d7%99%d7%a6%d7%99%d7%a8%d7%94-%d7%a2%d7%9d-%d7%a0%d7%99%d7%99%d7%a8-%d7%9b%d7%a1%d7%a3-%d7%91%d7%a0%d7%99%d7%94-floss-rock/"},
-  {id:28, name:"מרוץ בשלג — כיס אסטרטגי Londji",       emoji:"❄️", url:"https://ronchik.co.il/product/%d7%9e%d7%a8%d7%95%d7%a5-%d7%91%d7%a9%d7%9c%d7%92-%d7%9e%d7%a9%d7%97%d7%a7-%d7%9b%d7%99%d7%a1-%d7%90%d7%a1%d7%98%d7%a8%d7%98%d7%92%d7%99-londji/"},
-  {id:29, name:"היכון הכן צא — Londji",                  emoji:"🏁", url:"https://ronchik.co.il/product/%d7%9e%d7%a9%d7%97%d7%a7-%d7%9e%d7%a9%d7%a4%d7%97%d7%aa%d7%99-%d7%94%d7%99%d7%9b%d7%95%d7%9f-%d7%94%d7%9b%d7%9f-%d7%a6%d7%90-londji/"},
-  {id:30, name:"Tiny Game Strawberries — Londji",        emoji:"🍓", url:"https://ronchik.co.il/product/tiny-game-strawberries-londji/"},
-  {id:31, name:"Tiny Game Gelato — Londji",              emoji:"🍦", url:"https://ronchik.co.il/product/tiny-game-gelato-londji/"},
-  {id:32, name:"גלאי מתכות עם חיווי קולי",             emoji:"🔍", url:"https://ronchik.co.il/product/%d7%92%d7%9c%d7%90%d7%99-%d7%9e%d7%aa%d7%9b%d7%95%d7%aa-%d7%a2%d7%9d-%d7%97%d7%99%d7%95%d7%95%d7%99-%d7%a7%d7%95%d7%9c%d7%99-%d7%95%d7%99%d7%93%d7%99%d7%aa-%d7%9e%d7%aa%d7%9b%d7%95%d7%95%d7%a0%d7%a0/"},
-  {id:33, name:"קלפים מיסטריקס באפלה — Djeco",          emoji:"🃏", url:"https://ronchik.co.il/product/%d7%9e%d7%a9%d7%97%d7%a7-%d7%a7%d7%9c%d7%a4%d7%99%d7%9d-%d7%9e%d7%99%d7%a1%d7%98%d7%a8%d7%99%d7%a7%d7%a1-%d7%91%d7%90%d7%a4%d7%9c%d7%94-djeco/"},
-  {id:34, name:"סולוגיק דרכים — Djeco",                 emoji:"🧩", url:"https://ronchik.co.il/product/%d7%a1%d7%95%d7%9c%d7%95%d7%92%d7%99%d7%a7-%d7%93%d7%a8%d7%9b%d7%99%d7%9d-djeco/"},
-  {id:35, name:"יצירה מובייל אל הים — Londji",          emoji:"🎨", url:"https://ronchik.co.il/product/%d7%99%d7%a6%d7%99%d7%a8%d7%94-%d7%9e%d7%95%d7%91%d7%99%d7%99%d7%9c-%d7%90%d7%9c-%d7%94%d7%99%d7%9d-londji/"},
-  {id:36, name:"סט מצפן במבוק — Hape",                  emoji:"🧭", url:"https://ronchik.co.il/product/%d7%a1%d7%98-%d7%9e%d7%a6%d7%a4%d7%9f-%d7%91%d7%9e%d7%91%d7%95%d7%a7-hape/"},
-  {id:37, name:"משקפת — Egmont",                        emoji:"🔭", url:"https://ronchik.co.il/product/%d7%9e%d7%a9%d7%a7%d7%a4%d7%aa-egmont/"},
-  {id:38, name:"סט גששי בלש — Hape",                    emoji:"🕵️", url:"https://ronchik.co.il/product/%d7%a1%d7%98-%d7%92%d7%a9%d7%a9-%d7%91%d7%9c%d7%a9-hape/"},
-  {id:39, name:"Marble Track — Hape Tricks N Twists",   emoji:"⚽", url:"https://play-smart.co.il/hape-tricks-n-twists-marble-track"},
-  {id:40, name:"ג׳וניור Cuboro",                        emoji:"🧱", url:"https://woooolf.co.il/product/%d7%92%d7%b3%d7%95%d7%a0%d7%99%d7%95%d7%a8-cuboro-2"},
-  {id:41, name:"סטנדרט 16 Cuboro",                      emoji:"🎯", url:"https://woooolf.co.il/product/%d7%a1%d7%98%d7%a0%d7%93%d7%a8%d7%98-16-cuboro-2"},
-  {id:42, name:"Water Wonder — תעלת מים מעוצבת לחצר",   emoji:"🌊", url:null},
+  {id:1,  name:"סט להכנת פסטה — מליסה ודאג",           emoji:"🍝", category:"kitchen",  url:"https://dafram-online.co.il/%D7%9E%D7%9C%D7%99%D7%A1%D7%94-%D7%95%D7%93%D7%90%D7%92-%D7%A1%D7%98-%D7%9C%D7%94%D7%9B%D7%A0%D7%AA-%D7%A4%D7%A1%D7%98%D7%94/", img:null},
+  {id:2,  name:"דוכן סושי מעץ — Melissa & Doug",        emoji:"🍣", category:"kitchen",  url:"https://www.pluslaganenet.co.il/items/5039543-%D7%93%D7%95%D7%9B%D7%9F-%D7%A1%D7%95%D7%A9%D7%99-%D7%9E%D7%A2%D7%A5-Melissa-Doug", img:null},
+  {id:3,  name:"סושי מליסה ודאג (גרסה נוספת)",          emoji:"🍱", category:"kitchen",  url:"https://www.google.com/search?q=%D7%A1%D7%95%D7%A9%D7%99+%D7%9E%D7%9C%D7%99%D7%A1%D7%94+%D7%95%D7%93%D7%90%D7%92", img:null},
+  {id:4,  name:"אוהל אינדיאני טיפי",                    emoji:"⛺", category:"outdoor",  url:"https://www.idanelgani.co.il/html5/prolookup.taf?&_id=41375&did=9832", img:null},
+  {id:5,  name:"ערכת ברבקיו Smoby",                     emoji:"🍖", category:"kitchen",  url:"https://ti-m.co.il/product/%d7%a2%d7%a8%d7%9b%d7%aa-%d7%91%d7%a8%d7%91%d7%a7%d7%99%d7%95-%d7%9b%d7%95%d7%9c%d7%9c-%d7%90%d7%91%d7%99%d7%96%d7%a8%d7%99%d7%9d-%d7%a9%d7%9c-%d7%97%d7%91%d7%a8%d7%aa-smoby-%d7%9e%d7%a6%d7%a8%d7%a4/", img:null},
+  {id:6,  name:"מטבח לבחוץ עם מים",                     emoji:"🚿", category:"water",    url:null, img:null},
+  {id:7,  name:"דברים לחול של Quut",                    emoji:"🏖️", category:"beach",    url:null, img:null},
+  {id:8,  name:"עפיפון",                                 emoji:"🪁", category:"outdoor",  url:null, img:null},
+  {id:9,  name:"תעלת מים / שולחן מים",                  emoji:"💧", category:"water",    url:null, img:null},
+  {id:10, name:"משחק קופסא / קלפים — רונציק",           emoji:"🎲", category:"games",    url:null, img:null},
+  {id:11, name:"מטבח ילדים ושולחן עבודה — Yashas Wood", emoji:"🪵", category:"kitchen",  url:"https://yashas-wood.co.il/product/%d7%9e%d7%98%d7%91%d7%97-%d7%99%d7%9c%d7%93%d7%99%d7%9d-%d7%95%d7%a9%d7%95%d7%9c%d7%97%d7%9f-%d7%a2%d7%91%d7%95%d7%93%d7%94", img:null},
+  {id:12, name:"הרפתקאות סראוקה",                        emoji:"🎤", category:"misc",     url:null, img:null},
+  {id:13, name:"מייבש פרחים",                            emoji:"🌸", category:"creative", url:null, img:null},
+  {id:14, name:"זוג מחבטים עגולים — סקוטש",             emoji:"🏓", category:"outdoor",  url:"https://www.mekupelet.co.il/product/%D7%96%D7%95%D7%92-%D7%9E%D7%97%D7%91%D7%98%D7%99%D7%9D-%D7%A2%D7%92%D7%95%D7%9C%D7%99%D7%9D-%D7%A1%D7%A7%D7%95%D7%98%D7%A9-%D7%95%D7%9B%D7%93%D7%95%D7%A8%D7%99%D7%9D/", img:null},
+  {id:15, name:"זוג מחבטים ידיות עץ וכדור גומי",        emoji:"🪃", category:"outdoor",  url:"https://www.mekupelet.co.il/product/%D7%96%D7%95%D7%92-%D7%9E%D7%97%D7%91%D7%98%D7%99%D7%9D-%D7%99%D7%93%D7%99%D7%95%D7%AA-%D7%A2%D7%A5-%D7%95%D7%9B%D7%93%D7%95%D7%A8-%D7%92%D7%95%D7%9E%D7%99/", img:null},
+  {id:16, name:"תאפלה — פריט מיוחד",                    emoji:"🎯", category:"games",    url:"https://www.taflaya.co.il/items/8077487", img:null},
+  {id:17, name:"Castle Builders Kit — Sandpal",          emoji:"🏰", category:"beach",    url:"https://sandpal.co.il/products/castle-builders-kit", img:null},
+  {id:18, name:"ערכת הפתעות על חלל",                    emoji:"🚀", category:"creative", url:"https://www.galsoaps.co.il/product/%d7%a2%d7%a8%d7%9b%d7%aa-%d7%94%d7%a4%d7%aa%d7%a2%d7%95%d7%aa-%d7%a2%d7%9c-%d7%97%d7%9c%d7%9c", img:null},
+  {id:19, name:"משפך קנה גדול — ורוד ואדום",             emoji:"🎪", category:"beach",    url:"https://www.antal.co.il/product/10105/%D7%9E%D7%A9%D7%A4%D7%9A%20%D7%A7%D7%A0%D7%94%20%D7%92%D7%93%D7%95%D7%9C%20-%20%D7%95%D7%A8%D7%95%D7%93%20%D7%95%D7%90%D7%93%D7%95%D7%9D", img:null},
+  {id:20, name:"סט Quut לחוף — טריפלט, רינגו ושמש",     emoji:"☀️", category:"beach",    url:"https://www.antal.co.il/product/10106/%D7%A1%D7%98%20Quut%20%D7%9C%D7%97%D7%95%D7%A3%20%D7%94%D7%99%D7%9D%20-%20%D7%98%D7%A8%D7%99%D7%A4%D7%9C%D7%98,%20%D7%A8%D7%99%D7%A0%D7%92%D7%95,%20%D7%95%D7%A9%D7%9E%D7%A9%20%D7%9C%D7%97%D7%95%D7%9C", img:null},
+  {id:21, name:"פריסבי מסננת Quut",                      emoji:"🥏", category:"beach",    url:"https://www.antal.co.il/product/10108/%D7%A4%D7%A8%D7%99%D7%A1%D7%91%D7%99%20%D7%9E%D7%A1%D7%A0%D7%A0%D7%AA%20Quut", img:null},
+  {id:22, name:"סט Quut לחוף — אלטו וראקי לחול",        emoji:"🏄", category:"beach",    url:"https://www.antal.co.il/product/10576/%D7%A1%D7%98%20Quut%20%D7%9C%D7%97%D7%95%D7%A3%20%D7%94%D7%99%D7%9D%20-%20%D7%90%D7%9C%D7%98%D7%95%20%D7%95%D7%A8%D7%90%D7%A7%D7%99%20%D7%9C%D7%97%D7%95%D7%9C", img:null},
+  {id:23, name:"צעצועי צלילה — חיות ים",                emoji:"🐠", category:"beach",    url:"https://www.antal.co.il/product/11593/%D7%A6%D7%A2%D7%A6%D7%95%D7%A2%D7%99%20%D7%A6%D7%9C%D7%99%D7%9C%D7%94%20-%20%D7%97%D7%99%D7%95%D7%AA%20%D7%99%D7%9D", img:null},
+  {id:24, name:"מגבת משחק — כביש M",                    emoji:"🛣️", category:"outdoor",  url:"https://www.antal.co.il/product/11596/%D7%9E%D7%92%D7%91%D7%AA%20%D7%9E%D7%A9%D7%97%D7%A7%20-%20%D7%9B%D7%91%D7%99%D7%A9%20M", img:null},
+  {id:25, name:"קופי לגונה",                             emoji:"🐵", category:"beach",    url:"https://www.antal.co.il/product/11833/%D7%A7%D7%95%D7%A4%D7%99-%20%D7%9C%D7%92%D7%95%D7%A0%D7%94", img:null},
+  {id:26, name:"Antal — מוצר מיוחד",                    emoji:"🎁", category:"beach",    url:"https://www.antal.co.il/product/10107", img:null},
+  {id:27, name:"יצירה עם נייר כסף — Floss Rock",        emoji:"✨", category:"creative", url:"https://ronchik.co.il/product/%d7%99%d7%a6%d7%99%d7%a8%d7%94-%d7%a2%d7%9d-%d7%a0%d7%99%d7%99%d7%a8-%d7%9b%d7%a1%d7%a3-%d7%91%d7%a0%d7%99%d7%94-floss-rock/", img:null},
+  {id:28, name:"מרוץ בשלג — כיס אסטרטגי Londji",       emoji:"❄️", category:"games",    url:"https://ronchik.co.il/product/%d7%9e%d7%a8%d7%95%d7%a5-%d7%91%d7%a9%d7%9c%d7%92-%d7%9e%d7%a9%d7%97%d7%a7-%d7%9b%d7%99%d7%a1-%d7%90%d7%a1%d7%98%d7%a8%d7%98%d7%92%d7%99-londji/", img:null},
+  {id:29, name:"היכון הכן צא — Londji",                  emoji:"🏁", category:"games",    url:"https://ronchik.co.il/product/%d7%9e%d7%a9%d7%97%d7%a7-%d7%9e%d7%a9%d7%a4%d7%97%d7%aa%d7%99-%d7%94%d7%99%d7%9b%d7%95%d7%9f-%d7%94%d7%9b%d7%9f-%d7%a6%d7%90-londji/", img:null},
+  {id:30, name:"Tiny Game Strawberries — Londji",        emoji:"🍓", category:"games",    url:"https://ronchik.co.il/product/tiny-game-strawberries-londji/", img:null},
+  {id:31, name:"Tiny Game Gelato — Londji",              emoji:"🍦", category:"games",    url:"https://ronchik.co.il/product/tiny-game-gelato-londji/", img:null},
+  {id:32, name:"גלאי מתכות עם חיווי קולי",             emoji:"🔍", category:"explore",  url:"https://ronchik.co.il/product/%d7%92%d7%9c%d7%90%d7%99-%d7%9e%d7%aa%d7%9b%d7%95%d7%aa-%d7%a2%d7%9d-%d7%97%d7%99%d7%95%d7%95%d7%99-%d7%a7%d7%95%d7%9c%d7%99-%d7%95%d7%99%d7%93%d7%99%d7%aa-%d7%9e%d7%aa%d7%9b%d7%95%d7%95%d7%a0%d7%a0/", img:null},
+  {id:33, name:"קלפים מיסטריקס באפלה — Djeco",          emoji:"🃏", category:"games",    url:"https://ronchik.co.il/product/%d7%9e%d7%a9%d7%97%d7%a7-%d7%a7%d7%9c%d7%a4%d7%99%d7%9d-%d7%9e%d7%99%d7%a1%d7%98%d7%a8%d7%99%d7%a7%d7%a1-%d7%91%d7%90%d7%a4%d7%9c%d7%94-djeco/", img:null},
+  {id:34, name:"סולוגיק דרכים — Djeco",                 emoji:"🧩", category:"games",    url:"https://ronchik.co.il/product/%d7%a1%d7%95%d7%9c%d7%95%d7%92%d7%99%d7%a7-%d7%93%d7%a8%d7%9b%d7%99%d7%9d-djeco/", img:null},
+  {id:35, name:"יצירה מובייל אל הים — Londji",          emoji:"🎨", category:"creative", url:"https://ronchik.co.il/product/%d7%99%d7%a6%d7%99%d7%a8%d7%94-%d7%9e%d7%95%d7%91%d7%99%d7%99%d7%9c-%d7%90%d7%9c-%d7%94%d7%99%d7%9d-londji/", img:null},
+  {id:36, name:"סט מצפן במבוק — Hape",                  emoji:"🧭", category:"explore",  url:"https://ronchik.co.il/product/%d7%a1%d7%98-%d7%9e%d7%a6%d7%a4%d7%9f-%d7%91%d7%9e%d7%91%d7%95%d7%a7-hape/", img:null},
+  {id:37, name:"משקפת — Egmont",                        emoji:"🔭", category:"explore",  url:"https://ronchik.co.il/product/%d7%9e%d7%a9%d7%a7%d7%a4%d7%aa-egmont/", img:null},
+  {id:38, name:"סט גששי בלש — Hape",                    emoji:"🕵️", category:"explore",  url:"https://ronchik.co.il/product/%d7%a1%d7%98-%d7%92%d7%a9%d7%a9-%d7%91%d7%9c%d7%a9-hape/", img:null},
+  {id:39, name:"Marble Track — Hape Tricks N Twists",   emoji:"⚽", category:"marble",   url:"https://play-smart.co.il/hape-tricks-n-twists-marble-track", img:null},
+  {id:40, name:"ג׳וניור Cuboro",                        emoji:"🧱", category:"marble",   url:"https://woooolf.co.il/product/%d7%92%d7%b3%d7%95%d7%a0%d7%99%d7%95%d7%a8-cuboro-2", img:null},
+  {id:41, name:"סטנדרט 16 Cuboro",                      emoji:"🎯", category:"marble",   url:"https://woooolf.co.il/product/%d7%a1%d7%98%d7%a0%d7%93%d7%a8%d7%98-16-cuboro-2", img:null},
+  {id:42, name:"Water Wonder — תעלת מים מעוצבת לחצר",   emoji:"🌊", category:"water",    url:null, img:null},
 ];
 
 // ─── Firebase Init ───────────────────────────────────────────
@@ -356,10 +426,29 @@ async function removeGift(id) {
 window.setFilter = btn => { currentFilter = btn.dataset.f; render(); };
 
 // ─── Add modal ───────────────────────────────────────────────
-window.openModal = () => {
-  document.getElementById('inp-name').value = '';
-  document.getElementById('inp-url').value  = '';
-  selectedEmoji = '🎁';
+let editingId = null;
+
+function buildCatSelect() {
+  const sel = document.getElementById('cat-select');
+  sel.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = `${c.emoji} ${c.name}`;
+    sel.appendChild(o);
+  });
+}
+
+window.openModal = (existing = null) => {
+  editingId = existing?.id ?? null;
+  document.getElementById('modal-title').textContent = existing ? '✏️ עריכת מתנה' : '🎁 הוסף מתנה';
+  document.getElementById('modal-sub').textContent = existing ? 'עדכנו את פרטי המתנה' : 'הוסיפו מתנה שהילד ביקש';
+  document.getElementById('btn-add').textContent = existing ? 'שמור 💾' : 'הוסף 🎉';
+  document.getElementById('inp-name').value = existing?.name || '';
+  document.getElementById('inp-url').value  = existing?.url  || '';
+  document.getElementById('inp-img').value  = existing?.img  || '';
+  selectedEmoji = existing?.emoji || '🎁';
+  buildCatSelect();
+  document.getElementById('cat-select').value = existing?.category || autoCategory({name:''}) || 'misc';
   buildEmojiGrid();
   updateAddBtn();
   document.getElementById('modal-overlay').classList.add('open');
@@ -373,15 +462,24 @@ window.updateAddBtn = () => {
 window.doAdd = async () => {
   const name = document.getElementById('inp-name').value.trim();
   const url  = document.getElementById('inp-url').value.trim() || null;
+  const img  = document.getElementById('inp-img').value.trim() || null;
+  const category = document.getElementById('cat-select').value || 'misc';
   if (!name) return;
-  const g = { id: Date.now(), name, emoji: selectedEmoji, url };
-  gifts.push(g);
+  if (editingId != null) {
+    gifts = gifts.map(g => g.id === editingId ? { ...g, name, emoji:selectedEmoji, url, img, category } : g);
+  } else {
+    gifts.push({ id: Date.now(), name, emoji: selectedEmoji, url, img, category });
+  }
   await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g])));
+  editingId = null;
   closeModal();
 };
 
 // ─── Render ──────────────────────────────────────────────────
 function render() {
+  // Ensure every gift has a category (migrate older Firebase data)
+  gifts = gifts.map(g => g.category && CAT_MAP[g.category] ? g : { ...g, category: autoCategory(g) });
+
   const filtered = gifts.filter(g =>
     currentFilter === 'available' ? !purchased.has(g.id) :
     currentFilter === 'purchased' ?  purchased.has(g.id) : true
@@ -406,21 +504,58 @@ function render() {
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
   grid.innerHTML = '';
-  grid.appendChild(empty);
 
   if (!filtered.length) {
+    grid.appendChild(empty);
     empty.style.display = 'block';
     document.getElementById('empty-icon').textContent = currentFilter==='purchased' ? '🛒':'🎊';
     document.getElementById('empty-txt').textContent  = currentFilter==='purchased' ? 'עדיין לא סומנה מתנה':'אין מתנות בקטגוריה זו';
-  } else {
-    empty.style.display = 'none';
-    filtered.forEach((gift,i) => grid.appendChild(buildCard(gift,i)));
+    return;
   }
+  empty.style.display = 'none';
+
+  // Group by category
+  const byCat = {};
+  filtered.forEach(g => {
+    const c = g.category && CAT_MAP[g.category] ? g.category : 'misc';
+    (byCat[c] = byCat[c] || []).push(g);
+  });
+
+  let idx = 0;
+  CATEGORIES.forEach(cat => {
+    const items = byCat[cat.id];
+    if (!items || !items.length) return;
+    const section = document.createElement('div');
+    section.className = 'cat-section';
+
+    const header = document.createElement('div');
+    header.className = 'cat-header';
+    const chip = document.createElement('div');
+    chip.className = 'cat-chip';
+    chip.textContent = cat.emoji;
+    chip.style.background = cat.color + '22';
+    header.appendChild(chip);
+    const title = document.createElement('div');
+    title.className = 'cat-title';
+    title.textContent = cat.name;
+    header.appendChild(title);
+    const count = document.createElement('div');
+    count.className = 'cat-count';
+    count.textContent = `${items.length} פריטים`;
+    header.appendChild(count);
+    section.appendChild(header);
+
+    const catGrid = document.createElement('div');
+    catGrid.className = 'cat-grid';
+    items.forEach(gift => { catGrid.appendChild(buildCard(gift, idx++, cat)); });
+    section.appendChild(catGrid);
+    grid.appendChild(section);
+  });
 }
 
-function buildCard(gift, i) {
+function buildCard(gift, i, cat) {
   const isP  = purchased.has(gift.id);
-  const color = COLORS[i % COLORS.length];
+  const color = cat ? cat.color : COLORS[i % COLORS.length];
   const div  = document.createElement('div');
   div.className = 'card' + (isP?' purchased':'');
   div.style.borderTopColor = isP ? '#6BCB77' : color;
@@ -428,12 +563,27 @@ function buildCard(gift, i) {
 
   const rm = document.createElement('button');
   rm.className='rm-btn'; rm.textContent='✕'; rm.title='הסר מרשימה';
-  rm.onclick=()=>showConfirm(div,gift.id);
+  rm.onclick=(e)=>{e.stopPropagation();showConfirm(div,gift.id);};
   div.appendChild(rm);
 
   if(isP){const b=document.createElement('div');b.className='check-badge';b.textContent='✓';div.appendChild(b);}
 
-  const em=document.createElement('div');em.className='emoji';em.textContent=gift.emoji;div.appendChild(em);
+  const media = document.createElement('div');
+  media.className = 'media';
+  if (gift.img) {
+    const img = document.createElement('img');
+    img.src = gift.img;
+    img.alt = gift.name;
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.onerror = () => { media.classList.add('emoji-only'); media.textContent = gift.emoji || '🎁'; };
+    media.appendChild(img);
+  } else {
+    media.classList.add('emoji-only');
+    media.textContent = gift.emoji || '🎁';
+  }
+  div.appendChild(media);
+
   const nm=document.createElement('div');nm.className='name';nm.textContent=gift.name;div.appendChild(nm);
 
   if(gift.url&&!isP){
@@ -443,8 +593,15 @@ function buildCard(gift, i) {
   const mk=document.createElement('button');
   mk.className='mark-btn'+(isP?' is-marked':'');
   mk.textContent=isP?'✓ נקנה! לחץ לביטול':'סמן כנקנה';
-  mk.onclick=()=>togglePurchased(gift.id);
+  mk.onclick=(e)=>{e.stopPropagation();togglePurchased(gift.id);};
   div.appendChild(mk);
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'img-btn';
+  editBtn.textContent = gift.img ? '✏️ ערוך תמונה / פרטים' : '🖼️ הוסף תמונה / ערוך';
+  editBtn.onclick = (e) => { e.stopPropagation(); window.openModal(gift); };
+  div.appendChild(editBtn);
+
   return div;
 }
 
