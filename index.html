@@ -108,6 +108,19 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
 .card .media.emoji-only{font-size:54px;background:transparent;line-height:1}
 .card .name{font-size:13.5px;font-weight:700;color:#1f2937;text-align:center;line-height:1.4;min-height:38px;display:flex;align-items:center;justify-content:center}
 .card.purchased .name{text-decoration:line-through;color:#9ca3af}
+.card .price{
+  text-align:center;font-weight:900;font-size:17px;
+  color:#16a34a;margin-top:6px;letter-spacing:-.3px;
+  min-height:22px;display:flex;align-items:center;justify-content:center;gap:4px
+}
+.card .price.loading{color:#9ca3af;font-size:12px;font-weight:600}
+.card .price.loading::before{
+  content:'';width:9px;height:9px;border-radius:50%;
+  border:2px solid #e5e7eb;border-top-color:#FF8E53;
+  display:inline-block;animation:spin .7s linear infinite
+}
+.card .price.unknown{color:#d1d5db;font-size:12px;font-weight:600}
+.card.purchased .price{color:#9ca3af;text-decoration:line-through}
 .check-badge{
   position:absolute;top:10px;right:10px;
   width:28px;height:28px;border-radius:50%;
@@ -261,6 +274,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);min-height:100vh}
     <select id="cat-select"></select>
     <label class="mlabel">קישור לאתר (לא חובה)</label>
     <input id="inp-url" class="minput minput-ltr" placeholder="https://..." dir="ltr"/>
+    <label class="mlabel">מחיר ב-₪ (לא חובה — יימשך אוטומטית מהקישור)</label>
+    <input id="inp-price" class="minput minput-ltr" placeholder="199" inputmode="decimal" dir="ltr"/>
     <label class="mlabel">קישור לתמונה (לא חובה)</label>
     <input id="inp-img" class="minput minput-ltr" placeholder="https://...jpg" dir="ltr"/>
     <label class="mlabel" style="margin-bottom:8px">אמוג׳י (גיבוי אם אין תמונה)</label>
@@ -443,9 +458,10 @@ window.openModal = (existing = null) => {
   document.getElementById('modal-title').textContent = existing ? '✏️ עריכת מתנה' : '🎁 הוסף מתנה';
   document.getElementById('modal-sub').textContent = existing ? 'עדכנו את פרטי המתנה' : 'הוסיפו מתנה שהילד ביקש';
   document.getElementById('btn-add').textContent = existing ? 'שמור 💾' : 'הוסף 🎉';
-  document.getElementById('inp-name').value = existing?.name || '';
-  document.getElementById('inp-url').value  = existing?.url  || '';
-  document.getElementById('inp-img').value  = existing?.img  || '';
+  document.getElementById('inp-name').value  = existing?.name  || '';
+  document.getElementById('inp-url').value   = existing?.url   || '';
+  document.getElementById('inp-img').value   = existing?.img   || '';
+  document.getElementById('inp-price').value = existing?.price != null ? existing.price : '';
   selectedEmoji = existing?.emoji || '🎁';
   buildCatSelect();
   document.getElementById('cat-select').value = existing?.category || autoCategory({name:''}) || 'misc';
@@ -463,17 +479,174 @@ window.doAdd = async () => {
   const name = document.getElementById('inp-name').value.trim();
   const url  = document.getElementById('inp-url').value.trim() || null;
   const img  = document.getElementById('inp-img').value.trim() || null;
+  const priceRaw = document.getElementById('inp-price').value.trim();
+  const price = priceRaw && !isNaN(+priceRaw) ? +priceRaw : null;
   const category = document.getElementById('cat-select').value || 'misc';
   if (!name) return;
   if (editingId != null) {
-    gifts = gifts.map(g => g.id === editingId ? { ...g, name, emoji:selectedEmoji, url, img, category } : g);
+    gifts = gifts.map(g => g.id === editingId ? { ...g, name, emoji:selectedEmoji, url, img, price, category } : g);
   } else {
-    gifts.push({ id: Date.now(), name, emoji: selectedEmoji, url, img, category });
+    gifts.push({ id: Date.now(), name, emoji: selectedEmoji, url, img, price, category });
   }
   await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g])));
   editingId = null;
   closeModal();
 };
+
+// ─── Price fetching (client-side via CORS proxies) ───────────
+const CORS_PROXIES = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+];
+const priceInflight = new Set();
+const priceFailed   = new Set();
+const priceQueue    = [];
+let priceQueueRunning = false;
+const MAX_CONCURRENT_FETCHES = 3;
+
+function formatPrice(n) {
+  if (n >= 1000) return n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
+  return (Math.round(n*100)/100).toString();
+}
+
+function extractPrice(html) {
+  if (!html) return null;
+  // 1. JSON-LD blocks
+  const ldRe = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = ldRe.exec(html))) {
+    try {
+      const raw = m[1].trim();
+      const data = JSON.parse(raw);
+      const items = Array.isArray(data) ? data : (data['@graph'] ? data['@graph'] : [data]);
+      for (const it of items) {
+        const offers = it.offers || it.Offers;
+        if (offers) {
+          const arr = Array.isArray(offers) ? offers : [offers];
+          for (const o of arr) {
+            const p = o.price ?? o.lowPrice ?? o.highPrice;
+            if (p != null && !isNaN(+p)) return +p;
+          }
+        }
+        const p = it.price;
+        if (p != null && !isNaN(+p)) return +p;
+      }
+    } catch(e) {}
+  }
+  // 2. OG / product meta
+  const metas = [
+    /<meta[^>]+property=["']product:price:amount["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']product:price:amount["']/i,
+    /<meta[^>]+property=["']og:price:amount["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:price:amount["']/i,
+    /<meta[^>]+itemprop=["']price["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+itemprop=["']price["']/i,
+    /<meta[^>]+name=["']twitter:data1["'][^>]+content=["']([^"']*₪[^"']*)["']/i,
+  ];
+  for (const r of metas) {
+    const mm = html.match(r);
+    if (mm) {
+      const num = mm[1].replace(/[^\d.]/g, '');
+      if (num && !isNaN(+num)) return +num;
+    }
+  }
+  // 3. Visible ILS price (skip very small / very large extremes)
+  const candidates = [];
+  const ilsRe = /(?:₪|\bNIS\b|\bILS\b|ש["׳']?ח)\s*([\d][\d,]*(?:\.\d{1,2})?)|([\d][\d,]*(?:\.\d{1,2})?)\s*(?:₪|\bNIS\b|\bILS\b|ש["׳']?ח)/gi;
+  let im;
+  while ((im = ilsRe.exec(html))) {
+    const raw = (im[1] || im[2] || '').replace(/,/g, '');
+    const v = +raw;
+    if (!isNaN(v) && v >= 5 && v <= 100000) candidates.push(v);
+  }
+  if (candidates.length) {
+    // Pick the most frequent (likely the actual product price)
+    const freq = {};
+    candidates.forEach(v => freq[v] = (freq[v]||0)+1);
+    return +Object.entries(freq).sort((a,b)=>b[1]-a[1] || a[0]-b[0])[0][0];
+  }
+  return null;
+}
+
+async function fetchPriceFor(url) {
+  for (const proxify of CORS_PROXIES) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      const resp = await fetch(proxify(url), { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!resp.ok) continue;
+      const html = await resp.text();
+      const price = extractPrice(html);
+      if (price) return price;
+    } catch(e) { /* try next proxy */ }
+  }
+  return null;
+}
+
+function schedulePriceFetch(gift) {
+  if (!gift.url || gift.price != null) return;
+  if (priceInflight.has(gift.id) || priceFailed.has(gift.id)) return;
+  priceQueue.push(gift);
+  runPriceQueue();
+}
+
+async function runPriceQueue() {
+  if (priceQueueRunning) return;
+  priceQueueRunning = true;
+  const updates = [];
+  let flushTimer = null;
+  const scheduleFlush = () => {
+    if (flushTimer) return;
+    flushTimer = setTimeout(async () => {
+      flushTimer = null;
+      if (!updates.length) return;
+      const batch = updates.splice(0);
+      gifts = gifts.map(g => {
+        const u = batch.find(b => b.id === g.id);
+        return u ? { ...g, price: u.price } : g;
+      });
+      try { await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g]))); } catch(e) {}
+    }, 800);
+  };
+
+  const workers = Array.from({ length: MAX_CONCURRENT_FETCHES }, async () => {
+    while (priceQueue.length) {
+      const g = priceQueue.shift();
+      if (!g || priceInflight.has(g.id)) continue;
+      priceInflight.add(g.id);
+      const price = await fetchPriceFor(g.url);
+      priceInflight.delete(g.id);
+      if (price) {
+        updates.push({ id: g.id, price });
+        scheduleFlush();
+      } else {
+        priceFailed.add(g.id);
+        // Re-render that one card to show "מחיר לא נמצא"
+        const idx = gifts.findIndex(x => x.id === g.id);
+        if (idx >= 0) {
+          const tmp = gifts[idx];
+          gifts[idx] = { ...tmp };
+        }
+      }
+    }
+  });
+  await Promise.all(workers);
+  // Final flush
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  if (updates.length) {
+    const batch = updates.splice(0);
+    gifts = gifts.map(g => {
+      const u = batch.find(b => b.id === g.id);
+      return u ? { ...g, price: u.price } : g;
+    });
+    try { await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g]))); } catch(e) {}
+  }
+  // Re-render to update "failed" cards
+  render();
+  priceQueueRunning = false;
+}
 
 // ─── Render ──────────────────────────────────────────────────
 function render() {
@@ -585,6 +758,23 @@ function buildCard(gift, i, cat) {
   div.appendChild(media);
 
   const nm=document.createElement('div');nm.className='name';nm.textContent=gift.name;div.appendChild(nm);
+
+  const priceEl = document.createElement('div');
+  priceEl.className = 'price';
+  if (gift.price != null && !isNaN(+gift.price)) {
+    priceEl.textContent = '₪' + formatPrice(+gift.price);
+  } else if (gift.url && !priceFailed.has(gift.id)) {
+    priceEl.classList.add('loading');
+    priceEl.textContent = 'טוען מחיר…';
+    schedulePriceFetch(gift);
+  } else if (gift.url) {
+    priceEl.classList.add('unknown');
+    priceEl.textContent = '— מחיר לא נמצא —';
+  } else {
+    priceEl.classList.add('unknown');
+    priceEl.textContent = '— ללא מחיר —';
+  }
+  div.appendChild(priceEl);
 
   if(gift.url&&!isP){
     const a=document.createElement('a');a.className='link-btn';a.href=gift.url;a.target='_blank';a.rel='noopener noreferrer';
