@@ -432,6 +432,23 @@ async function persistPurchased() {
   try { await set(purchasedRef, purchasedPayload(purchased)); } catch(e) { console.error('persistPurchased', e); }
 }
 
+function safeRender() {
+  try { render(); }
+  catch(e) {
+    console.error('render error', e);
+    const grid = document.getElementById('grid');
+    if (grid) {
+      grid.innerHTML = `<div style="padding:40px 20px;text-align:center;color:#ef4444;font-weight:700">
+        ⚠️ שגיאה בהצגת המתנות<br><small style="font-weight:500;color:#9ca3af">${(e && e.message) || e}</small>
+      </div>`;
+    }
+  }
+}
+
+// Show defaults immediately so the page is never blank, even before Firebase responds.
+gifts = DEFAULT_GIFTS.slice();
+safeRender();
+
 try {
   app = initializeApp(firebaseConfig);
   db  = getDatabase(app);
@@ -448,19 +465,25 @@ try {
       gifts = DEFAULT_GIFTS.slice();
       persistGifts();
     }
-    render();
+    safeRender();
+  }, err => {
+    console.error('giftsRef onValue error', err);
+    setSyncStatus('error', '⚠️ בעיה בקריאה מ-Firebase — מציג ברירת מחדל');
   });
 
   onValue(purchasedRef, snap => {
     purchased = normalizePurchased(snap.val());
     setSyncStatus('', '🔗 מסונכרן עם כל המשפחה — שינויים נראים לכולם בזמן אמת');
-    render();
+    safeRender();
+  }, err => {
+    console.error('purchasedRef onValue error', err);
   });
 
 } catch(e) {
+  console.error('Firebase init error', e);
   setSyncStatus('error', '⚠️ בעיית חיבור — בדוק את ה-Firebase config');
   gifts = DEFAULT_GIFTS.slice();
-  render();
+  safeRender();
 }
 
 // ─── Actions ─────────────────────────────────────────────────
@@ -481,7 +504,7 @@ async function removeGift(id) {
   await persistGifts();
 }
 
-window.setFilter = btn => { currentFilter = btn.dataset.f; render(); };
+window.setFilter = btn => { currentFilter = btn.dataset.f; safeRender(); };
 
 // ─── Add modal ───────────────────────────────────────────────
 let editingId = null;
@@ -684,10 +707,10 @@ async function runPriceQueue() {
       const u = batch.find(b => b.id === g.id);
       return u ? { ...g, price: u.price } : g;
     });
-    try { await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g]))); } catch(e) {}
+    await persistGifts();
   }
   // Re-render to update "failed" cards
-  render();
+  safeRender();
   priceQueueRunning = false;
 }
 
