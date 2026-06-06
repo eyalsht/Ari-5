@@ -743,17 +743,19 @@ function render() {
   });
 
   const grid = document.getElementById('grid');
-  const empty = document.getElementById('empty');
   grid.innerHTML = '';
 
   if (!filtered.length) {
-    grid.appendChild(empty);
+    const empty = document.createElement('div');
+    empty.id = 'empty';
     empty.style.display = 'block';
-    document.getElementById('empty-icon').textContent = currentFilter==='purchased' ? '🛒':'🎊';
-    document.getElementById('empty-txt').textContent  = currentFilter==='purchased' ? 'עדיין לא סומנה מתנה':'אין מתנות בקטגוריה זו';
+    empty.innerHTML = `
+      <div class="empty-icon">${currentFilter==='purchased' ? '🛒' : '🎊'}</div>
+      <p>${currentFilter==='purchased' ? 'עדיין לא סומנה מתנה' : 'אין מתנות בקטגוריה זו'}</p>
+    `;
+    grid.appendChild(empty);
     return;
   }
-  empty.style.display = 'none';
 
   // Group by category
   const byCat = {};
