@@ -393,6 +393,45 @@ function setSyncStatus(status, txt) {
   label.textContent = txt;
 }
 
+// Firebase RTDB turns objects with mostly-numeric keys into sparse arrays
+// (e.g. {1: a, 2: b} → [undefined, a, b]). Normalize on read, prefix on write.
+function normalizeGifts(val) {
+  if (!val) return [];
+  const arr = Array.isArray(val) ? val : Object.values(val);
+  return arr.filter(g => g && typeof g === 'object' && g.id != null);
+}
+function giftsPayload(arr) {
+  const obj = {};
+  for (const g of arr) {
+    if (g && g.id != null) obj['g' + g.id] = g;
+  }
+  return obj;
+}
+function normalizePurchased(val) {
+  const s = new Set();
+  if (!val) return s;
+  const entries = Array.isArray(val) ? val.map((v,i)=>[i,v]) : Object.entries(val);
+  for (const [k, v] of entries) {
+    if (!v) continue;
+    const num = Number(String(k).replace(/^p/, ''));
+    if (!isNaN(num)) s.add(num);
+  }
+  return s;
+}
+function purchasedPayload(set) {
+  const obj = {};
+  for (const id of set) obj['p' + id] = true;
+  return obj;
+}
+async function persistGifts() {
+  if (!giftsRef) return;
+  try { await set(giftsRef, giftsPayload(gifts)); } catch(e) { console.error('persistGifts', e); }
+}
+async function persistPurchased() {
+  if (!purchasedRef) return;
+  try { await set(purchasedRef, purchasedPayload(purchased)); } catch(e) { console.error('persistPurchased', e); }
+}
+
 try {
   app = initializeApp(firebaseConfig);
   db  = getDatabase(app);
@@ -402,21 +441,25 @@ try {
   // ─── Listen for real-time changes ───────────────────────────
   onValue(giftsRef, snap => {
     const val = snap.val();
-    gifts = val ? Object.values(val) : DEFAULT_GIFTS;
-    if (!val) set(giftsRef, Object.fromEntries(DEFAULT_GIFTS.map(g=>[g.id,g])));
+    const normalized = normalizeGifts(val);
+    if (normalized.length) {
+      gifts = normalized;
+    } else {
+      gifts = DEFAULT_GIFTS.slice();
+      persistGifts();
+    }
     render();
   });
 
   onValue(purchasedRef, snap => {
-    const val = snap.val();
-    purchased = new Set(val ? Object.keys(val).filter(k=>val[k]).map(Number) : []);
+    purchased = normalizePurchased(snap.val());
     setSyncStatus('', '🔗 מסונכרן עם כל המשפחה — שינויים נראים לכולם בזמן אמת');
     render();
   });
 
 } catch(e) {
   setSyncStatus('error', '⚠️ בעיית חיבור — בדוק את ה-Firebase config');
-  gifts = DEFAULT_GIFTS;
+  gifts = DEFAULT_GIFTS.slice();
   render();
 }
 
@@ -426,16 +469,16 @@ async function togglePurchased(id) {
   if (next.has(id)) { next.delete(id); }
   else { next.add(id); spawnConfetti(); }
   purchased = next;
-  const obj = {};
-  for (const x of next) obj[x] = true;
-  await set(purchasedRef, obj);
+  await persistPurchased();
 }
 
 async function removeGift(id) {
   gifts = gifts.filter(g => g.id !== id);
-  purchased.delete(id);
-  await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g])));
-  await set(purchasedRef, Object.fromEntries([...purchased].map(id=>[id,true])));
+  if (purchased.has(id)) {
+    purchased.delete(id);
+    await persistPurchased();
+  }
+  await persistGifts();
 }
 
 window.setFilter = btn => { currentFilter = btn.dataset.f; render(); };
@@ -488,7 +531,7 @@ window.doAdd = async () => {
   } else {
     gifts.push({ id: Date.now(), name, emoji: selectedEmoji, url, img, price, category });
   }
-  await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g])));
+  await persistGifts();
   editingId = null;
   closeModal();
 };
@@ -607,7 +650,7 @@ async function runPriceQueue() {
         const u = batch.find(b => b.id === g.id);
         return u ? { ...g, price: u.price } : g;
       });
-      try { await set(giftsRef, Object.fromEntries(gifts.map(g=>[g.id,g]))); } catch(e) {}
+      try { await persistGifts(); } catch(e) {}
     }, 800);
   };
 
@@ -650,6 +693,8 @@ async function runPriceQueue() {
 
 // ─── Render ──────────────────────────────────────────────────
 function render() {
+  // Defensive: drop any null/undefined entries before touching properties.
+  gifts = gifts.filter(g => g && typeof g === 'object' && g.id != null);
   // Ensure every gift has a category (migrate older Firebase data)
   gifts = gifts.map(g => g.category && CAT_MAP[g.category] ? g : { ...g, category: autoCategory(g) });
 
